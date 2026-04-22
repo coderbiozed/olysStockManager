@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olysproduct Pro | Stock & Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; min-height: 100vh; color: #1e293b; }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.7); }
+        [v-cloak] { display: none; }
+        .btn-primary { background-color: #ea580c; color: white; transition: all 0.2s ease; }
+        .btn-primary:hover { background-color: #c2410c; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(234, 88, 12, 0.3); }
+        .card { background: white; border-radius: 24px; border: 1px solid #e2e8f0; transition: all 0.2s; }
+        .card:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        input, select { transition: all 0.2s; }
+        input:focus { border-color: #ea580c !important; ring: 2px; ring-color: #ea580c; }
+        
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="p-4 md:p-8 lg:p-12">
+
+    <div id="app" class="max-w-6xl mx-auto" v-cloak>
+        <!-- Dynamic Toast Notification -->
+        <transition name="fade">
+            <div v-if="syncing" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] bg-slate-900 text-white px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-4 border border-slate-700">
+                <div class="animate-spin h-5 w-5 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+                <span class="font-bold text-sm tracking-wide">Cloud Syncing to Spreadsheet...</span>
+            </div>
+        </transition>
+
+        <!-- Main Header -->
+        <header class="flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-6 glass p-8 rounded-[32px] shadow-sm">
+            <div>
+                <div class="flex items-center gap-3">
+                    <div class="bg-orange-600 p-3 rounded-2xl text-white shadow-lg shadow-orange-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-black tracking-tight text-slate-900">Olysproduct <span class="text-orange-600 font-extrabold italic">Pro</span></h1>
+                        <p class="text-slate-500 font-semibold text-sm flex items-center gap-2">
+                            <span :class="sheetUrl ? 'bg-emerald-500' : 'bg-slate-300'" class="w-2 h-2 rounded-full animate-pulse"></span>
+                            {{ sheetUrl ? 'Connected to Google Sheets' : 'Local Mode (Cloud Ready)' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                    <button @click="showSyncCenter = true" class="px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-white transition-all text-slate-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                        Sync Center
+                    </button>
+                    <button @click="downloadCSV" class="px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-white transition-all text-slate-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        Export CSV
+                    </button>
+                </div>
+                <button @click="isAdding = true" class="btn-primary flex items-center gap-3 px-8 py-3.5 rounded-2xl font-black shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    New Item
+                </button>
+            </div>
+        </header>
+
+        <!-- Visual Analytics -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="card p-8">
+                <p class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Inventory</p>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-4xl font-black text-slate-800">{{ inventory.length }} <span class="text-lg text-slate-400">Items</span></p>
+                    <div class="h-10 w-20 flex items-end gap-1">
+                        <div v-for="n in 5" :style="{height: Math.random()*100+'%'}" class="flex-1 bg-orange-100 rounded-t-sm"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-8 border-l-4 border-l-emerald-500">
+                <p class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Stock Value</p>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-4xl font-black text-emerald-600">৳{{ totalValue.toLocaleString() }}</p>
+                    <svg class="text-emerald-200" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="m17 5-5-3-5 3"/><path d="m17 19-5 3-5-3"/><path d="M2 12h20"/><path d="m5 7 3 5-3 5"/><path d="m19 7-3 5 3 5"/></svg>
+                </div>
+            </div>
+            <div class="card p-8 border-l-4 border-l-rose-500" :class="{'animate-pulse bg-rose-50/30': lowStockCount > 0}">
+                <p class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Low Stock Alert</p>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-4xl font-black text-rose-600">{{ lowStockCount }}</p>
+                    <div class="bg-rose-100 text-rose-600 p-2 rounded-lg font-bold text-xs">Priority Reorder</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory Control Panel -->
+        <div class="card overflow-hidden shadow-xl shadow-slate-200/50">
+            <div class="p-8 border-b border-slate-100 bg-white flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h2 class="text-xl font-black text-slate-800">Master Inventory</h2>
+                    <p class="text-sm font-medium text-slate-400">Manage products, pricing, and distribution</p>
+                </div>
+                <div class="relative w-full md:w-96">
+                    <input v-model="search" type="text" placeholder="Search by name, SKU or category..." class="w-full pl-12 pr-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:bg-white outline-none font-medium">
+                    <svg class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-slate-50/50 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            <th class="px-8 py-5">Product Details</th>
+                            <th class="px-8 py-5 text-center">Unit Price</th>
+                            <th class="px-8 py-5 text-center">Inventory Level</th>
+                            <th class="px-8 py-5 text-center">Total Worth</th>
+                            <th class="px-8 py-5 text-right">Settings</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="item in filteredInventory" :key="item.id" class="group hover:bg-slate-50/80 transition-all">
+                            <td class="px-8 py-6">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 text-lg uppercase group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                                        {{ item.name.charAt(0) }}
+                                    </div>
+                                    <div>
+                                        <div class="font-extrabold text-slate-800 text-lg">{{ item.name }}</div>
+                                        <div class="flex items-center gap-2 mt-0.5">
+                                            <span class="text-[10px] font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 uppercase">{{ item.sku }}</span>
+                                            <span class="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{{ item.category || 'General' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                                <div class="font-black text-slate-700">৳{{ item.price.toLocaleString() }}</div>
+                            </td>
+                            <td class="px-8 py-6">
+                                <div class="flex flex-col items-center gap-2">
+                                    <div class="flex items-center justify-center gap-4 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                                        <button @click="updateQty(item.id, item.quantity - 1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:text-orange-600 shadow-sm transition-all">-</button>
+                                        <span class="w-10 text-center font-black text-lg" :class="item.quantity < 5 ? 'text-rose-600 animate-pulse' : 'text-slate-800'">{{ item.quantity }}</span>
+                                        <button @click="updateQty(item.id, item.quantity + 1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:text-orange-600 shadow-sm transition-all">+</button>
+                                    </div>
+                                    <div v-if="item.quantity < 5" class="text-[9px] font-black text-rose-500 uppercase">Low Stock</div>
+                                </div>
+                            </td>
+                            <td class="px-8 py-6 text-center font-black text-emerald-600">৳{{ (item.price * item.quantity).toLocaleString() }}</td>
+                            <td class="px-8 py-6 text-right">
+                                <button @click="deleteItem(item.id)" class="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="filteredInventory.length === 0">
+                            <td colspan="5" class="px-8 py-20 text-center">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-200">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                                    </div>
+                                    <h3 class="font-bold text-slate-500">No products found</h3>
+                                    <p class="text-sm text-slate-400">Try adjusting your search or add a new product.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Sync Center Modal -->
+        <div v-if="showSyncCenter" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[400]">
+            <div class="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden">
+                <div class="p-10 border-b border-slate-100 bg-slate-50/50">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-3xl font-black text-slate-800 leading-tight">Sync Center</h3>
+                            <p class="text-slate-500 mt-2 font-medium">Configure your data automation workflow</p>
+                        </div>
+                        <button @click="showSyncCenter = false" class="bg-white p-3 rounded-2xl shadow-sm text-slate-400 hover:text-slate-600">✕</button>
+                    </div>
+                </div>
+                
+                <div class="p-10 space-y-10">
+                    <!-- Option 1: Live Sheets -->
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-100 text-emerald-600 p-2 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                            </div>
+                            <h4 class="font-black text-slate-800 uppercase text-xs tracking-widest">Automation: Google Sheets</h4>
+                        </div>
+                        <div class="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Apps Script Web App URL</label>
+                            <input v-model="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-mono text-xs mt-2 shadow-inner">
+                            <p class="text-[10px] text-slate-400 mt-3 ml-1 leading-relaxed">
+                                Requires the <code>code.gs</code> bridge installed in your sheet. When connected, every "New Item" addition will automatically sync to your private Gmail spreadsheet.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <button @click="saveSetup" class="flex-1 py-5 bg-slate-900 text-white rounded-[24px] font-black hover:bg-slate-800 shadow-xl shadow-slate-900/20 transition-all flex items-center justify-center gap-2">
+                            Save Configuration
+                        </button>
+                        <button @click="syncAllItems" :disabled="!sheetUrl" class="flex-1 py-5 bg-emerald-100 text-emerald-700 rounded-[24px] font-black hover:bg-emerald-200 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                            Full Sheet Sync
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Item Modal -->
+        <div v-if="isAdding" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[400]">
+            <div class="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden">
+                <div class="p-10 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="text-2xl font-black text-slate-800">Add Product</h3>
+                    <button @click="isAdding = false" class="text-slate-400">✕</button>
+                </div>
+                <form @submit.prevent="addItem" class="p-10 space-y-6">
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Product Name</label>
+                            <input v-model="newItem.name" required placeholder="e.g., iPhone 15 Pro Max" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:bg-white font-bold text-slate-800">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Unique SKU</label>
+                                <input v-model="newItem.sku" required placeholder="IPH-001" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:bg-white font-mono uppercase font-bold text-slate-600">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Category</label>
+                                <select v-model="newItem.category" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:bg-white font-bold text-slate-800">
+                                    <option value="">General</option>
+                                    <option>Electronics</option>
+                                    <option>Hardware</option>
+                                    <option>Accessories</option>
+                                    <option>Clothing</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Sale Price (৳)</label>
+                                <input v-model.number="newItem.price" required type="number" step="0.01" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:bg-white font-black text-slate-800">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Initial Stock</label>
+                                <input v-model.number="newItem.quantity" required type="number" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:bg-white font-black text-slate-800">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 pt-6">
+                        <button type="button" @click="isAdding = false" class="flex-1 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black transition-all">Discard</button>
+                        <button type="submit" class="flex-1 py-5 btn-primary rounded-2xl font-black shadow-xl">Create & Sync</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'olysproduct-stock-manager';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        createApp({
+            setup() {
+                const inventory = ref([]);
+                const user = ref(null);
+                const search = ref('');
+                const isAdding = ref(false);
+                const showSyncCenter = ref(false);
+                const syncing = ref(false);
+                const sheetUrl = ref(localStorage.getItem('olys_sheet_url') || '');
+                const newItem = ref({ name: '', sku: '', quantity: 0, price: 0, category: '' });
+
+                const totalValue = computed(() => inventory.value.reduce((acc, i) => acc + (i.price * i.quantity), 0));
+                const lowStockCount = computed(() => inventory.value.filter(i => i.quantity < 5).length);
+                
+                const filteredInventory = computed(() => {
+                    const q = search.value.toLowerCase();
+                    return inventory.value.filter(i => 
+                        i.name.toLowerCase().includes(q) || 
+                        i.sku.toLowerCase().includes(q) ||
+                        (i.category && i.category.toLowerCase().includes(q))
+                    );
+                });
+
+                onMounted(async () => {
+                    // Rule 3: Auth Before Queries
+                    const initAuth = async () => {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (err) {
+                            console.error("Auth failed:", err);
+                        }
+                    };
+
+                    onAuthStateChanged(auth, (u) => {
+                        user.value = u;
+                        if (u) {
+                            loadData();
+                        }
+                    });
+
+                    await initAuth();
+                });
+
+                const loadData = () => {
+                    if (!user.value) return;
+                    // Rule 1: Strict Paths
+                    const invRef = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
+                    onSnapshot(query(invRef), (snap) => {
+                        inventory.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    }, (err) => {
+                        console.error("Firestore error:", err);
+                    });
+                };
+
+                const saveSetup = () => {
+                    localStorage.setItem('olys_sheet_url', sheetUrl.value);
+                    showSyncCenter.value = false;
+                };
+
+                const syncToSheet = async (item) => {
+                    if (!sheetUrl.value) return;
+                    syncing.value = true;
+                    try {
+                        await fetch(sheetUrl.value, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(item)
+                        });
+                    } catch (e) {
+                        console.error("Sync error:", e);
+                    } finally {
+                        setTimeout(() => syncing.value = false, 1500);
+                    }
+                };
+
+                const syncAllItems = async () => {
+                    if (!confirm(`Ready to push all ${inventory.value.length} items to your linked Google Sheet?`)) return;
+                    showSyncCenter.value = false;
+                    for (const item of inventory.value) {
+                        await syncToSheet(item);
+                    }
+                };
+
+                const downloadCSV = () => {
+                    if (inventory.value.length === 0) return;
+                    const headers = ["Name", "SKU", "Category", "Quantity", "Price", "Total Value"];
+                    const rows = inventory.value.map(i => [
+                        `"${i.name}"`, 
+                        `"${i.sku}"`, 
+                        `"${i.category || 'General'}"`, 
+                        i.quantity, 
+                        i.price, 
+                        i.price * i.quantity
+                    ]);
+                    
+                    let csvContent = "data:text/csv;charset=utf-8," 
+                        + headers.join(",") + "\n"
+                        + rows.map(e => e.join(",")).join("\n");
+
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `Olysproduct_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                };
+
+                const addItem = async () => {
+                    if (!user.value) return;
+                    const data = { 
+                        ...newItem.value, 
+                        sku: newItem.value.sku.toUpperCase(),
+                        timestamp: new Date().toISOString()
+                    };
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), data);
+                        await syncToSheet(data);
+                        isAdding.value = false;
+                        newItem.value = { name: '', sku: '', quantity: 0, price: 0, category: '' };
+                    } catch (e) {
+                        console.error("Error adding item:", e);
+                    }
+                };
+
+                const updateQty = async (id, val) => {
+                    if (!user.value) return;
+                    const newQty = Math.max(0, val);
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id), { 
+                            quantity: newQty 
+                        });
+                    } catch (e) {
+                        console.error("Error updating qty:", e);
+                    }
+                };
+
+                const deleteItem = async (id) => {
+                    if (!user.value) return;
+                    if (confirm('Permanently remove this item from inventory?')) {
+                        try {
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
+                        } catch (e) {
+                            console.error("Error deleting item:", e);
+                        }
+                    }
+                };
+
+                return {
+                    inventory, search, isAdding, newItem, totalValue, lowStockCount, filteredInventory,
+                    showSyncCenter, sheetUrl, syncing,
+                    addItem, updateQty, deleteItem, saveSetup, syncAllItems, downloadCSV
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
